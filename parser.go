@@ -20,7 +20,7 @@ const (
 func (pt *protoTree) parse() {
 	currentWork := pt.source
 	pt.list = pt.tree.Root
-	//stack := newListNodeStack(pt.tree.Root)
+	stack := newListNodeStack(pt.tree.Root)
 	for pt.hasDelims(currentWork) {
 		startIndex := strings.Index(currentWork, pt.localLeft)
 		endIndex := strings.Index(currentWork, pt.localRight)
@@ -48,8 +48,131 @@ func (pt *protoTree) parse() {
 			yn := newYieldNode(work)
 			pt.list.Nodes = append(pt.list.Nodes, yn)
 		case openBlock:
+			dlist := &parse.ListNode{
+				NodeType: parse.NodeList,
+			}
+			stack.push(work, pt.list)
+
+			innerPipe := &parse.PipeNode{
+				NodeType: parse.NodePipe,
+				Cmds: []*parse.CommandNode{
+					&parse.CommandNode{
+						NodeType: parse.NodeCommand,
+						Args: []parse.Node{
+							&parse.FieldNode{
+								NodeType: parse.NodeField,
+								Ident:    []string{work},
+							},
+						},
+					},
+				},
+			}
+
+			ifNode := &parse.IfNode{
+				parse.BranchNode{
+					NodeType: parse.NodeIf,
+					Pipe:     newIdentNode(work).Pipe,
+					List: &parse.ListNode{
+						NodeType: parse.NodeList,
+						Nodes: []parse.Node{
+							&parse.IfNode{
+								parse.BranchNode{
+									NodeType: parse.NodeIf,
+									Pipe: &parse.PipeNode{
+										NodeType: parse.NodePipe,
+										Cmds: []*parse.CommandNode{
+											&parse.CommandNode{
+												NodeType: parse.NodeCommand,
+												Args: []parse.Node{
+													&parse.FieldNode{
+														NodeType: parse.NodeField,
+														Ident:    []string{work},
+													},
+												},
+											},
+											&parse.CommandNode{
+												NodeType: parse.NodeCommand,
+												Args: []parse.Node{
+													&parse.IdentifierNode{
+														NodeType: parse.NodeIdentifier,
+														Ident:    "mussedIsCollection",
+													},
+												},
+											},
+										},
+									},
+									List: &parse.ListNode{
+										NodeType: parse.NodeList,
+										Nodes: []parse.Node{
+											&parse.RangeNode{
+												parse.BranchNode{
+													NodeType: parse.NodeRange,
+													Pipe:     innerPipe,
+													List:     dlist,
+												},
+											},
+										},
+									},
+									ElseList: &parse.ListNode{
+										NodeType: parse.NodeList,
+										Nodes: []parse.Node{
+											&parse.WithNode{
+												parse.BranchNode{
+													NodeType: parse.NodeWith,
+													Pipe:     innerPipe,
+													List:     dlist,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			pt.list.Nodes = append(pt.list.Nodes, ifNode)
+			pt.list = dlist
 		case closeBlock:
+
+			list, _, err := stack.pop()
+			if err != nil {
+				pt.err = err
+			}
+			pt.list = list
 		case elseBlock:
+			dlist := &parse.ListNode{
+				NodeType: parse.NodeList,
+			}
+			stack.push(work, pt.list)
+
+			ifNode := &parse.IfNode{
+				parse.BranchNode{
+					NodeType: parse.NodeIf,
+					Pipe: &parse.PipeNode{
+						NodeType: parse.NodePipe,
+						Cmds: []*parse.CommandNode{
+							&parse.CommandNode{
+								NodeType: parse.NodeCommand,
+								Args: []parse.Node{
+									&parse.IdentifierNode{
+										NodeType: parse.NodeIdentifier,
+										Ident:    "not",
+									},
+									&parse.FieldNode{
+										NodeType: parse.NodeField,
+										Ident:    []string{work},
+									},
+								},
+							},
+						},
+					},
+					List: dlist,
+				},
+			}
+			pt.list.Nodes = append(pt.list.Nodes, ifNode)
+			pt.list = dlist
 		}
 	}
 	if currentWork != "" {
@@ -73,7 +196,7 @@ func (pt *protoTree) takeActionFor(w string) (string, int) {
 	switch tw[0] {
 	// start a range/call/if block
 	case '#':
-		return tw, openBlock
+		return tw[1:], openBlock
 
 		// end a block
 	case '/':
@@ -124,8 +247,8 @@ type listNodeStack struct {
 func (lns *listNodeStack) push(name string, ln *parse.ListNode) {
 	if ln != lns.bottom {
 		lns.stackings = append(lns.stackings, ln)
-		lns.names = append(lns.names, name)
 	}
+	lns.names = append(lns.names, name)
 }
 
 func (lns *listNodeStack) pop() (*parse.ListNode, string, error) {

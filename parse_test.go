@@ -62,3 +62,54 @@ func TestSwitchDelim(t *testing.T) {
 		test.AreEqual("<html>Andrew<title>Wat</title><body>do you lift?</body></html>", b.String())
 	})
 }
+
+func TestIfSingle(t *testing.T) {
+	within(t, func(test *aTest) {
+		t := template.New("test").Funcs(RequiredFuncs)
+		tree, err := Parse("test.mustache", "<html>{{#name}}<title>Title</title>{{/name}}</html>")
+		test.IsNil(err)
+		t, err = t.AddParseTree("tree", tree["test"])
+		test.IsNil(err)
+
+		b := new(bytes.Buffer)
+		test.IsNil(t.ExecuteTemplate(b, "tree",
+			map[string]interface{}{"name": "Andrew"}))
+		test.AreEqual("<html><title>Title</title></html>", b.String())
+	})
+}
+
+func TestRanging(t *testing.T) {
+	within(t, func(test *aTest) {
+		t := template.New("test").Funcs(RequiredFuncs)
+		tree, err := Parse("test.mustache", "<html>{{#name}}<title>Title</title>{{/name}}</html>")
+		test.IsNil(err)
+		t, err = t.AddParseTree("tree", tree["test"])
+		test.IsNil(err)
+
+		b := new(bytes.Buffer)
+		t.ExecuteTemplate(b, "tree",
+			map[string]interface{}{"name": "Andrew"})
+		test.AreEqual("<html><title>Title</title></html>", b.String())
+
+		b.Reset()
+		t.ExecuteTemplate(b, "tree",
+			map[string]interface{}{"name": []string{"Andrew", "John"}})
+		test.AreEqual("<html><title>Title</title><title>Title</title></html>", b.String())
+
+	})
+
+}
+
+func TestNot(t *testing.T) {
+	within(t, func(test *aTest) {
+		t := template.New("test").Funcs(RequiredFuncs)
+		tree, err := Parse("test.mustache", "<html>{{^name}}<title>Title</title>{{/name}}</html>")
+		test.IsNil(err)
+		t, err = t.AddParseTree("tree", tree["test"])
+		test.IsNil(err)
+
+		b := new(bytes.Buffer)
+		test.IsNil(t.ExecuteTemplate(b, "tree", nil))
+		test.AreEqual("<html><title>Title</title></html>", b.String())
+	})
+}
