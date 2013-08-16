@@ -1,6 +1,7 @@
 package mussed
 
 import (
+	"strings"
 	"text/template/parse"
 )
 
@@ -10,19 +11,30 @@ var (
 )
 
 func Parse(templateName, templateContent string) (map[string]*parse.Tree, error) {
-	proto := &protoTree{source: text, localRight: RightDelim, localLeft: LeftDelim}
+	i := strings.Index(templateName, ".mustache")
+	name := templateName[:i] + templateName[i+len(".mustache"):]
+
+	proto := &protoTree{
+		source:     templateContent,
+		localRight: RightDelim,
+		localLeft:  LeftDelim,
+		tree: &parse.Tree{
+			Name:      name,
+			ParseName: templateName,
+			Root: &parse.ListNode{
+				NodeType: parse.NodeList,
+			},
+		},
+	}
 	proto.parse()
 
-	i := strings.Index(name, ".mustache")
-
 	return map[string]*parse.Tree{
-		name[:i] + name[i+5:]: proto.tree,
+		name: proto.tree,
 	}, proto.err
 }
 
 type protoTree struct {
 	source     string
-	tokenList  []token
 	tree       *parse.Tree
 	list       *parse.ListNode
 	err        error

@@ -3,7 +3,6 @@ package mussed
 import (
 	"fmt"
 	"strings"
-	"text/template"
 	"text/template/parse"
 )
 
@@ -12,7 +11,7 @@ const (
 	closeBlock
 	elseBlock
 	ident
-	template
+	templateCall
 	yield
 	noop
 	erroring
@@ -21,7 +20,7 @@ const (
 func (pt *protoTree) parse() {
 	currentWork := pt.source
 	pt.list = pt.tree.Root
-	stack := newListNodeStack(pt.Tree.Root)
+	//stack := newListNodeStack(pt.tree.Root)
 	for pt.hasDelims(currentWork) {
 		startIndex := strings.Index(currentWork, pt.localLeft)
 		endIndex := strings.Index(currentWork, pt.localRight)
@@ -41,13 +40,13 @@ func (pt *protoTree) parse() {
 			return
 		case ident:
 			an := newIdentNode(work)
-			pt.list = append(pt.list, an)
-		case template:
+			pt.list.Nodes = append(pt.list.Nodes, an)
+		case templateCall:
 			tn := newTemplateNode(work)
-			pt.list = append(pt.list, tn)
+			pt.list.Nodes = append(pt.list.Nodes, tn)
 		case yield:
 			yn := newYieldNode(work)
-			pt.list = append(pt.list, yn)
+			pt.list.Nodes = append(pt.list.Nodes, yn)
 		case openBlock:
 		case closeBlock:
 		case elseBlock:
@@ -65,13 +64,13 @@ func (pt *protoTree) pushTextNode(text string) {
 
 func (pt *protoTree) hasDelims(s string) bool {
 	return strings.Index(s, pt.localLeft) < strings.Index(s, pt.localRight) &&
-		strings.Index(s, pt.localLeft) > 0
+		strings.Index(s, pt.localLeft) >= 0
 }
 
 func (pt *protoTree) takeActionFor(w string) (string, int) {
 	w = w[len(pt.localLeft) : len(w)-len(pt.localRight)]
-	tw = strings.TrimSpace(a[:endIndex+len("}}")-startIndex])
-	switch w[0] {
+	tw := strings.TrimSpace(w)
+	switch tw[0] {
 	// start a range/call/if block
 	case '#':
 		return tw, openBlock
@@ -86,7 +85,7 @@ func (pt *protoTree) takeActionFor(w string) (string, int) {
 
 		// template/yield
 	case '>':
-		return tw, template
+		return tw, templateCall
 
 		// yield block
 	case '<':
@@ -94,7 +93,7 @@ func (pt *protoTree) takeActionFor(w string) (string, int) {
 
 		// switch delimeters
 	case '=':
-		delims := strings.Split(a[1:len(a)-1], " ")
+		delims := strings.Split(tw[1:len(tw)-1], " ")
 		if len(delims) != 2 {
 			if len(delims)%2 == 0 {
 				delims = []string{delims[0][0 : len(delims[0])/2], delims[0][len(delims[0])/2 : len(delims[0])]}
@@ -106,6 +105,7 @@ func (pt *protoTree) takeActionFor(w string) (string, int) {
 		pt.localRight = delims[1]
 
 		return "", noop
+
 		// .ident block
 	default:
 		return strings.TrimSpace(w), ident
@@ -122,38 +122,25 @@ type listNodeStack struct {
 }
 
 func (lns *listNodeStack) push(name string, ln *parse.ListNode) {
-	if lns != bottom {
+	if ln != lns.bottom {
 		lns.stackings = append(lns.stackings, ln)
 		lns.names = append(lns.names, name)
 	}
 }
 
-func safeAction(s string) (*parse.ActionNode, error) {
-	t, e := template.New("mule").Parse(s)
-	if e != nil {
-		return nil, e
-	}
-	main := t.Tree.Root.Nodes[len(t.Tree.Root.Nodes)-1]
-	if an, ok := main.(*parse.ActionNode); ok {
-		return an, nil
-	} else {
-		return nil, fmt.Errorf("Couldn't find action node")
-	}
-}
-
-func (lns *listNodeStack) pop() (*parse.ListNode, name, error) {
-	ln := bottom
-	if len(names) == 0 {
+func (lns *listNodeStack) pop() (*parse.ListNode, string, error) {
+	ln := lns.bottom
+	if len(lns.names) == 0 {
 		return nil, "", fmt.Errorf("Too many closing tags")
 	}
 	name := lns.names[len(lns.names)-1]
 	lns.names = lns.names[:len(lns.names)-1]
 	if len(lns.stackings) > 0 {
-		ln := lns.stackings[len(lns.stackings)-1]
+		ln = lns.stackings[len(lns.stackings)-1]
 		lns.stackings = lns.stackings[:len(lns.stackings)-1]
 	}
 
-	return ln
+	return ln, name, nil
 }
 
 func newIdentNode(field string) *parse.ActionNode {
@@ -190,7 +177,7 @@ func newTemplateNode(w string) *parse.TemplateNode {
 		Pipe: &parse.PipeNode{
 			NodeType: parse.NodePipe,
 			Cmds: []*parse.CommandNode{
-				*parse.CommandNode{
+				&parse.CommandNode{
 					NodeType: parse.NodeCommand,
 					Args: []parse.Node{
 						&parse.DotNode{},
@@ -216,7 +203,7 @@ func newYieldNode(w string) *parse.ActionNode {
 			Text:     tw,
 		})
 	}
-	args = append(args, &parse.NodeDot{})
+	args = append(args, &parse.DotNode{})
 
 	return &parse.ActionNode{
 		NodeType: parse.NodeAction,

@@ -7,10 +7,6 @@ import (
 	"text/template/parse"
 )
 
-func newListNode(listarea []token) *parse.ListNode {
-	return new(parse.ListNode)
-}
-
 func newpipeline(s string) *parse.PipeNode {
 	// take the simplest way of getting text/template to parse it
 	// and then steal the result
@@ -31,13 +27,6 @@ func newBranchNode(nodeType parse.NodeType, pipe string) parse.BranchNode {
 }
 
 func safeAction(s string) (*parse.ActionNode, error) {
-	// take the simplest way of getting text/template to parse it
-	// and then steal the result
-	if varUse.MatchString(s) {
-		for _, varUser := range varUse.FindAllStringSubmatch(s, -1) {
-			s = "{{ " + varUser[0] + " := 0 }}" + s
-		}
-	}
 	t, e := template.New("mule").Parse(s)
 	if e != nil {
 		return nil, e
