@@ -229,7 +229,11 @@ func (pt *protoTree) takeActionFor(w string) (string, int) {
 
 		return "", noop
 
-		// .ident block
+		// comment block
+	case '!':
+		return "", noop
+
+	// .ident block
 	default:
 		return strings.TrimSpace(w), ident
 	}
