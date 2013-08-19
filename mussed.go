@@ -28,6 +28,7 @@ func Parse(templateName, templateContent string) (map[string]*parse.Tree, error)
 			},
 		},
 	}
+	proto.list = proto.tree.Root
 	proto.parse()
 
 	return map[string]*parse.Tree{

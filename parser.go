@@ -25,7 +25,11 @@ func (pt *protoTree) parse() {
 	scanner := bufio.NewScanner(pt.Reader())
 	for scanner.Scan() {
 		currentWork.Append(scanner.Text())
-		if currentWork.hasAction() && currentWork.needsMoreText() {
+		if currentWork.hasAction() {
+			if currentWork.needsMoreText() {
+				continue
+			}
+		} else {
 			continue
 		}
 
@@ -51,7 +55,9 @@ func (pt *protoTree) parse() {
 	if currentWork.hasAction() && currentWork.needsMoreText() {
 		pt.err = fmt.Errorf("unterminated delimeter")
 	} else {
-		pt.list.Nodes = append(pt.list.Nodes, newTextNode(currentWork.content))
+		if len(currentWork.content) > 0 {
+			pt.list.Nodes = append(pt.list.Nodes, newTextNode(currentWork.content))
+		}
 	}
 }
 

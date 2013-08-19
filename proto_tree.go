@@ -33,6 +33,7 @@ func (pt *protoTree) push(ln *parse.ListNode) {
 type stash struct {
 	tree    *protoTree
 	content string
+	started bool
 }
 
 func (s *stash) needsMoreText() bool {
@@ -52,7 +53,23 @@ func (s *stash) needsMoreText() bool {
 }
 
 func (s *stash) Append(t string) {
-	s.content += t
+	ts := strings.TrimSpace(t)
+	//standalone comments
+	if strings.HasPrefix(ts, s.tree.localLeft) {
+		if strings.TrimSpace(ts[len(s.tree.localLeft):])[0] == '!' {
+			if strings.HasSuffix(ts, s.tree.localRight) {
+				return
+			} else {
+				s.content += ts
+			}
+		}
+	}
+	if s.started {
+		s.content = s.content + "\n" + t
+	} else {
+		s.content = t
+		s.started = true
+	}
 }
 func (s *stash) hasAction() bool {
 	return strings.Contains(s.content, s.tree.localLeft) ||
@@ -66,12 +83,16 @@ func (s *stash) pullToAction() (string, string) {
 	s.content = s.content[loc:]
 	if abnormal {
 		action = s.content[:len(LeftEscapeDelim)]
+		s.content = s.content[len(LeftEscapeDelim):]
 		closeLocation := strings.Index(s.content, RightEscapeDelim)
-		action += s.content[:closeLocation]
+		action += s.content[:closeLocation+len(RightEscapeDelim)]
+		s.content = s.content[closeLocation+len(RightEscapeDelim):]
 	} else {
 		action = s.content[:len(s.tree.localLeft)]
+		s.content = s.content[len(s.tree.localLeft):]
 		closeLocation := strings.Index(s.content, s.tree.localRight)
-		action += s.content[:closeLocation]
+		action += s.content[:closeLocation+len(s.tree.localRight)]
+		s.content = s.content[closeLocation+len(s.tree.localRight):]
 	}
 	return text, action
 }
