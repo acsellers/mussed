@@ -6,8 +6,10 @@ import (
 )
 
 var (
-	LeftDelim  = "{{"
-	RightDelim = "}}"
+	LeftDelim        = "{{"
+	RightDelim       = "}}"
+	LeftEscapeDelim  = "{{{"
+	RightEscapeDelim = "}}}"
 )
 
 func Parse(templateName, templateContent string) (map[string]*parse.Tree, error) {
@@ -31,13 +33,4 @@ func Parse(templateName, templateContent string) (map[string]*parse.Tree, error)
 	return map[string]*parse.Tree{
 		name: proto.tree,
 	}, proto.err
-}
-
-type protoTree struct {
-	source     string
-	tree       *parse.Tree
-	list       *parse.ListNode
-	err        error
-	localLeft  string
-	localRight string
 }

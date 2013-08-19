@@ -1,0 +1,116 @@
+func (pt *protoTree) parse_old() {
+	var startIndex, endIndex, startRawIndex, action int
+	var work, currentWork string
+	var unescape bool
+
+	currentWork = pt.source
+	pt.list = pt.tree.Root
+	stack := newListNodeStack(pt.tree.Root)
+	for pt.hasDelims(currentWork) {
+		unescape = false
+		startIndex = strings.Index(currentWork, pt.localLeft)
+		startRawIndex = strings.Index(currentWork, LeftEscapeDelim)
+		if strings.Contains(currentWork, LeftEscapeDelim) && startRawIndex <= startIndex {
+			endIndex = strings.Index(currentWork, RightEscapeDelim)
+			if startIndex > 0 {
+				pt.list.Nodes = append(pt.list.Nodes, newTextNode(currentWork[:startRawIndex]))
+				currentWork = currentWork[startRawIndex:]
+				work = currentWork[:endIndex+len(RightEscapeDelim)-startIndex]
+				currentWork = currentWork[len(work):]
+				unescape = true
+
+				localLeft, localRight := pt.localLeft, pt.localRight
+				pt.localLeft, pt.localRight = LeftEscapeDelim, RightEscapeDelim
+				work, action = pt.takeActionFor(work)
+				pt.localLeft, pt.localRight = localLeft, localRight
+			}
+
+		} else {
+			endIndex = strings.Index(currentWork, pt.localRight)
+			if startIndex >= 0 {
+				pt.list.Nodes = append(pt.list.Nodes, newTextNode(currentWork[:startIndex]))
+				currentWork = currentWork[startIndex:]
+				work = currentWork[:endIndex+len(pt.localRight)-startIndex]
+				currentWork = currentWork[len(work):]
+
+				work, action = pt.takeActionFor(work)
+
+			}
+		}
+		switch action {
+		case noop:
+			// do nothing
+		case erroring:
+			pt.err = fmt.Errorf(work)
+			return
+		case unescaped:
+			an := newUnescapedIdentNode(work)
+			pt.list.Nodes = append(pt.list.Nodes, an)
+		case ident:
+			if unescape {
+				an := newUnescapedIdentNode(work)
+				pt.list.Nodes = append(pt.list.Nodes, an)
+			} else {
+				an := newIdentNode(work)
+				pt.list.Nodes = append(pt.list.Nodes, an)
+			}
+		case templateCall:
+			tn := newTemplateNode(work)
+			pt.list.Nodes = append(pt.list.Nodes, tn)
+		case yield:
+			yn := newYieldNode(work)
+			pt.list.Nodes = append(pt.list.Nodes, yn)
+		case openBlock:
+			dlist := &parse.ListNode{
+				NodeType: parse.NodeList,
+			}
+			stack.push(work, pt.list)
+
+			pt.list.Nodes = append(pt.list.Nodes, ifNode)
+			pt.list = dlist
+		case closeBlock:
+
+			list, _, err := stack.pop()
+			if err != nil {
+				pt.err = err
+			}
+			pt.list = list
+		case elseBlock:
+			dlist := &parse.ListNode{
+				NodeType: parse.NodeList,
+			}
+			stack.push(work, pt.list)
+
+			ifNode := &parse.IfNode{
+				parse.BranchNode{
+					NodeType: parse.NodeIf,
+					Pipe: &parse.PipeNode{
+						NodeType: parse.NodePipe,
+						Cmds: []*parse.CommandNode{
+							&parse.CommandNode{
+								NodeType: parse.NodeCommand,
+								Args: []parse.Node{
+									&parse.IdentifierNode{
+										NodeType: parse.NodeIdentifier,
+										Ident:    "not",
+									},
+									&parse.FieldNode{
+										NodeType: parse.NodeField,
+										Ident:    []string{work},
+									},
+								},
+							},
+						},
+					},
+					List: dlist,
+				},
+			}
+			pt.list.Nodes = append(pt.list.Nodes, ifNode)
+			pt.list = dlist
+		}
+	}
+	if currentWork != "" {
+		pt.list = pt.tree.Root
+		pt.list.Nodes = append(pt.list.Nodes, newTextNode(currentWork))
+	}
+}

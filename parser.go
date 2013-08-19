@@ -1,9 +1,11 @@
 package mussed
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"strings"
-	"text/template/parse"
 )
 
 const (
@@ -11,6 +13,7 @@ const (
 	closeBlock
 	elseBlock
 	ident
+	unescaped
 	templateCall
 	yield
 	noop
@@ -18,171 +21,38 @@ const (
 )
 
 func (pt *protoTree) parse() {
-	currentWork := pt.source
-	pt.list = pt.tree.Root
-	stack := newListNodeStack(pt.tree.Root)
-	for pt.hasDelims(currentWork) {
-		startIndex := strings.Index(currentWork, pt.localLeft)
-		endIndex := strings.Index(currentWork, pt.localRight)
-		if startIndex > 0 {
-			pt.pushTextNode(currentWork[:startIndex])
-			currentWork = currentWork[startIndex:]
+	currentWork := &stash{tree: pt}
+	scanner := bufio.NewScanner(pt.Reader())
+	for scanner.Scan() {
+		currentWork.Append(scanner.Text())
+		if currentWork.hasAction() && currentWork.needsMoreText() {
+			continue
 		}
-		work := currentWork[:endIndex+len(pt.localRight)-startIndex]
-		currentWork = currentWork[len(work):]
 
-		work, action := pt.takeActionFor(work)
-		switch action {
-		case noop:
-			// do nothing
-		case erroring:
-			pt.err = fmt.Errorf(work)
-			return
+		precedingText, action := currentWork.pullToAction()
+		pt.list.Nodes = append(pt.list.Nodes, newTextNode(precedingText))
+
+		switch pt.actionPurpose(action) {
 		case ident:
-			an := newIdentNode(work)
-			pt.list.Nodes = append(pt.list.Nodes, an)
+			pt.insertIdentNode(action)
 		case templateCall:
-			tn := newTemplateNode(work)
-			pt.list.Nodes = append(pt.list.Nodes, tn)
+			pt.insertTemplateNode(action)
 		case yield:
-			yn := newYieldNode(work)
-			pt.list.Nodes = append(pt.list.Nodes, yn)
+			pt.insertYieldNode(action)
 		case openBlock:
-			dlist := &parse.ListNode{
-				NodeType: parse.NodeList,
-			}
-			stack.push(work, pt.list)
-
-			innerPipe := &parse.PipeNode{
-				NodeType: parse.NodePipe,
-				Cmds: []*parse.CommandNode{
-					&parse.CommandNode{
-						NodeType: parse.NodeCommand,
-						Args: []parse.Node{
-							&parse.FieldNode{
-								NodeType: parse.NodeField,
-								Ident:    []string{work},
-							},
-						},
-					},
-				},
-			}
-
-			ifNode := &parse.IfNode{
-				parse.BranchNode{
-					NodeType: parse.NodeIf,
-					Pipe:     newIdentNode(work).Pipe,
-					List: &parse.ListNode{
-						NodeType: parse.NodeList,
-						Nodes: []parse.Node{
-							&parse.IfNode{
-								parse.BranchNode{
-									NodeType: parse.NodeIf,
-									Pipe: &parse.PipeNode{
-										NodeType: parse.NodePipe,
-										Cmds: []*parse.CommandNode{
-											&parse.CommandNode{
-												NodeType: parse.NodeCommand,
-												Args: []parse.Node{
-													&parse.FieldNode{
-														NodeType: parse.NodeField,
-														Ident:    []string{work},
-													},
-												},
-											},
-											&parse.CommandNode{
-												NodeType: parse.NodeCommand,
-												Args: []parse.Node{
-													&parse.IdentifierNode{
-														NodeType: parse.NodeIdentifier,
-														Ident:    "mussedIsCollection",
-													},
-												},
-											},
-										},
-									},
-									List: &parse.ListNode{
-										NodeType: parse.NodeList,
-										Nodes: []parse.Node{
-											&parse.RangeNode{
-												parse.BranchNode{
-													NodeType: parse.NodeRange,
-													Pipe:     innerPipe,
-													List:     dlist,
-												},
-											},
-										},
-									},
-									ElseList: &parse.ListNode{
-										NodeType: parse.NodeList,
-										Nodes: []parse.Node{
-											&parse.WithNode{
-												parse.BranchNode{
-													NodeType: parse.NodeWith,
-													Pipe:     innerPipe,
-													List:     dlist,
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			}
-
-			pt.list.Nodes = append(pt.list.Nodes, ifNode)
-			pt.list = dlist
+			pt.startBlock(action)
 		case closeBlock:
-
-			list, _, err := stack.pop()
-			if err != nil {
-				pt.err = err
-			}
-			pt.list = list
+			pt.endBlock(action)
 		case elseBlock:
-			dlist := &parse.ListNode{
-				NodeType: parse.NodeList,
-			}
-			stack.push(work, pt.list)
-
-			ifNode := &parse.IfNode{
-				parse.BranchNode{
-					NodeType: parse.NodeIf,
-					Pipe: &parse.PipeNode{
-						NodeType: parse.NodePipe,
-						Cmds: []*parse.CommandNode{
-							&parse.CommandNode{
-								NodeType: parse.NodeCommand,
-								Args: []parse.Node{
-									&parse.IdentifierNode{
-										NodeType: parse.NodeIdentifier,
-										Ident:    "not",
-									},
-									&parse.FieldNode{
-										NodeType: parse.NodeField,
-										Ident:    []string{work},
-									},
-								},
-							},
-						},
-					},
-					List: dlist,
-				},
-			}
-			pt.list.Nodes = append(pt.list.Nodes, ifNode)
-			pt.list = dlist
+			pt.startElseBlock(action)
 		}
 	}
-	if currentWork != "" {
-		pt.list = pt.tree.Root
-		pt.pushTextNode(currentWork)
-	}
-}
 
-func (pt *protoTree) pushTextNode(text string) {
-	pt.list.Nodes = append(pt.list.Nodes, newTextNode(text))
+	if currentWork.hasAction() && currentWork.needsMoreText() {
+		pt.err = fmt.Errorf("unterminated delimeter")
+	} else {
+		pt.list.Nodes = append(pt.list.Nodes, newTextNode(currentWork.content))
+	}
 }
 
 func (pt *protoTree) hasDelims(s string) bool {
@@ -190,29 +60,32 @@ func (pt *protoTree) hasDelims(s string) bool {
 		strings.Index(s, pt.localLeft) >= 0
 }
 
-func (pt *protoTree) takeActionFor(w string) (string, int) {
+func (pt *protoTree) actionPurpose(w string) int {
+	if strings.Contains(w, LeftEscapeDelim) {
+		return ident
+	}
 	w = w[len(pt.localLeft) : len(w)-len(pt.localRight)]
 	tw := strings.TrimSpace(w)
 	switch tw[0] {
 	// start a range/call/if block
 	case '#':
-		return tw[1:], openBlock
+		return openBlock
 
 		// end a block
 	case '/':
-		return tw, closeBlock
+		return closeBlock
 
 		// start an else block
 	case '^':
-		return tw, elseBlock
+		return elseBlock
 
 		// template/yield
 	case '>':
-		return tw, templateCall
+		return templateCall
 
 		// yield block
 	case '<':
-		return tw, yield
+		return yield
 
 		// switch delimeters
 	case '=':
@@ -221,127 +94,92 @@ func (pt *protoTree) takeActionFor(w string) (string, int) {
 			if len(delims)%2 == 0 {
 				delims = []string{delims[0][0 : len(delims[0])/2], delims[0][len(delims[0])/2 : len(delims[0])]}
 			} else {
-				return "Delimeter change failed", erroring
+				return noop
 			}
 		}
 		pt.localLeft = delims[0]
 		pt.localRight = delims[1]
 
-		return "", noop
+		return noop
 
 		// comment block
 	case '!':
-		return "", noop
+		return noop
 
-	// .ident block
+		// .ident block
+	case '&':
+		return ident
+
 	default:
-		return strings.TrimSpace(w), ident
-	}
-}
-func newListNodeStack(ln *parse.ListNode) *listNodeStack {
-	return &listNodeStack{bottom: ln}
-}
-
-type listNodeStack struct {
-	bottom    *parse.ListNode
-	stackings []*parse.ListNode
-	names     []string
-}
-
-func (lns *listNodeStack) push(name string, ln *parse.ListNode) {
-	if ln != lns.bottom {
-		lns.stackings = append(lns.stackings, ln)
-	}
-	lns.names = append(lns.names, name)
-}
-
-func (lns *listNodeStack) pop() (*parse.ListNode, string, error) {
-	ln := lns.bottom
-	if len(lns.names) == 0 {
-		return nil, "", fmt.Errorf("Too many closing tags")
-	}
-	name := lns.names[len(lns.names)-1]
-	lns.names = lns.names[:len(lns.names)-1]
-	if len(lns.stackings) > 0 {
-		ln = lns.stackings[len(lns.stackings)-1]
-		lns.stackings = lns.stackings[:len(lns.stackings)-1]
-	}
-
-	return ln, name, nil
-}
-
-func newIdentNode(field string) *parse.ActionNode {
-	// ActionNodes hold executable things, which are stuck
-	// in PipeNodes for chaining
-	// Command Nodes encapsulate a single ident, func call, etc.
-	// Each Command node needs Arguments to hold the details of
-	// ident (or chained access) or func call args
-	// A function call would be an IdentifierNode, but we are
-	// accessing things on the '.' so we'll be using field nodes
-	return &parse.ActionNode{
-		NodeType: parse.NodeAction,
-		Pipe: &parse.PipeNode{
-			NodeType: parse.NodePipe,
-			Cmds: []*parse.CommandNode{
-				&parse.CommandNode{
-					NodeType: parse.NodeCommand,
-					Args: []parse.Node{
-						&parse.FieldNode{
-							NodeType: parse.NodeField,
-							Ident:    []string{field},
-						},
-					},
-				},
-			},
-		},
+		return ident
 	}
 }
 
-func newTemplateNode(w string) *parse.TemplateNode {
-	return &parse.TemplateNode{
-		NodeType: parse.NodeTemplate,
-		Name:     w,
-		Pipe: &parse.PipeNode{
-			NodeType: parse.NodePipe,
-			Cmds: []*parse.CommandNode{
-				&parse.CommandNode{
-					NodeType: parse.NodeCommand,
-					Args: []parse.Node{
-						&parse.DotNode{},
-					},
-				},
-			},
-		},
+func (pt *protoTree) Reader() io.Reader {
+	return bytes.NewBufferString(pt.source)
+}
+
+func (pt *protoTree) extract(s string) string {
+	if strings.HasPrefix(s, pt.localLeft) {
+		s = s[len(pt.localLeft):]
+	}
+	if strings.HasPrefix(s, LeftEscapeDelim) {
+		s = s[len(LeftEscapeDelim):]
+	}
+	if strings.HasSuffix(s, pt.localRight) {
+		s = s[:len(s)-len(pt.localRight)]
+	}
+	if strings.HasSuffix(s, RightEscapeDelim) {
+		s = s[:len(s)-len(RightEscapeDelim)]
+	}
+	switch s[0] {
+	case '#', '/', '^', '>', '<', '=', '!', '&':
+		s = s[1:]
+	}
+
+	return strings.TrimSpace(s)
+}
+
+func (pt *protoTree) insertIdentNode(a string) {
+	if pt.unescapedAction(a) {
+		un := newUnescapedIdentNode(pt.extract(a))
+		pt.list.Nodes = append(pt.list.Nodes, un)
+	} else {
+		an := newIdentNode(pt.extract(a))
+		pt.list.Nodes = append(pt.list.Nodes, an)
 	}
 }
 
-func newYieldNode(w string) *parse.ActionNode {
-	args := []parse.Node{
-		&parse.IdentifierNode{
-			NodeType: parse.NodeIdentifier,
-			Ident:    "yield",
-		},
-	}
-	tw := strings.TrimSpace(w)
-	if tw != "" {
-		args = append(args, &parse.StringNode{
-			NodeType: parse.NodeString,
-			Quoted:   tw,
-			Text:     tw,
-		})
-	}
-	args = append(args, &parse.DotNode{})
+func (pt *protoTree) insertTemplateNode(a string) {
+	tn := newTemplateNode(pt.extract(a))
+	pt.list.Nodes = append(pt.list.Nodes, tn)
+}
 
-	return &parse.ActionNode{
-		NodeType: parse.NodeAction,
-		Pipe: &parse.PipeNode{
-			NodeType: parse.NodePipe,
-			Cmds: []*parse.CommandNode{
-				&parse.CommandNode{
-					NodeType: parse.NodeCommand,
-					Args:     args,
-				},
-			},
-		},
-	}
+func (pt *protoTree) insertYieldNode(a string) {
+	yn := newYieldNode(pt.extract(a))
+	pt.list.Nodes = append(pt.list.Nodes, yn)
+}
+
+func (pt *protoTree) startBlock(a string) {
+	tmpl, call, list := newBlockNode(pt.extract(a))
+	pt.childTrees = append(pt.childTrees, tmpl)
+	pt.list.Nodes = append(pt.list.Nodes, call)
+	pt.push(pt.list)
+	pt.list = list
+}
+
+func (pt *protoTree) endBlock(a string) {
+	pt.list = pt.pop()
+}
+
+func (pt *protoTree) startElseBlock(a string) {
+	ifNode, list := newElseBlock(a)
+	pt.list.Nodes = append(pt.list.Nodes, ifNode)
+	pt.push(pt.list)
+	pt.list = list
+}
+
+func (pt *protoTree) unescapedAction(s string) bool {
+	return strings.HasPrefix(s, LeftEscapeDelim) ||
+		strings.HasPrefix(s, pt.localLeft+"&")
 }

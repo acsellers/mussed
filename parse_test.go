@@ -2,8 +2,8 @@ package mussed
 
 import (
 	"bytes"
+	"html/template"
 	"testing"
-	"text/template"
 )
 
 func TestTextParse(t *testing.T) {

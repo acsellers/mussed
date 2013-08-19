@@ -1,8 +1,9 @@
 package mussed
 
 import (
+	"fmt"
+	"html/template"
 	"reflect"
-	"text/template"
 )
 
 var RequiredFuncs = template.FuncMap{
@@ -14,5 +15,11 @@ var RequiredFuncs = template.FuncMap{
 		default:
 			return false
 		}
+	},
+	"mussedUnescape": func(i ...interface{}) template.HTML {
+		if len(i) == 1 {
+			return template.HTML(fmt.Sprint(i[0]))
+		}
+		return template.HTML("")
 	},
 }
