@@ -200,7 +200,7 @@ func (pt *protoTree) endBlock(a string) {
 }
 
 func (pt *protoTree) startElseBlock(a string) {
-	ifNode, list := newElseBlock(a)
+	ifNode, list := newElseBlock(pt.extract(a))
 	pt.list.Nodes = append(pt.list.Nodes, ifNode)
 	pt.push(pt.list)
 	pt.list = list

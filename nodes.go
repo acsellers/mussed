@@ -87,6 +87,9 @@ func newElseBlock(f string) (*parse.IfNode, *parse.ListNode) {
 					},
 				},
 			},
+			List: &parse.ListNode{
+				NodeType: parse.NodeList,
+			},
 			ElseList: listNode,
 		},
 	}
