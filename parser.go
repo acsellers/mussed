@@ -170,7 +170,11 @@ func (pt *protoTree) insertIdentNode(a string) {
 		un := newUnescapedIdentNode(pt.extract(a))
 		pt.list.Nodes = append(pt.list.Nodes, un)
 	} else {
-		an := newIdentNode(pt.extract(a))
+		ax := pt.extract(a)
+		if ax == "." {
+			ax = "mussedItem"
+		}
+		an := newIdentNode(ax)
 		pt.list.Nodes = append(pt.list.Nodes, an)
 	}
 }

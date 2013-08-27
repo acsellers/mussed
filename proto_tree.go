@@ -76,13 +76,26 @@ func (s *stash) Append(t string) {
 		}
 		return
 	}
-	if strings.HasPrefix(ts, s.tree.localLeft) {
+	if strings.HasPrefix(ts, s.tree.localLeft) && strings.Count(ts, s.tree.localLeft) == 1 {
 		if strings.TrimSpace(ts[len(s.tree.localLeft):])[0] == '!' {
 			if strings.HasSuffix(ts, s.tree.localRight) {
 				return
 			} else {
 				s.commenting = true
 				return
+			}
+		}
+	}
+	// sections opening and closing
+	if strings.HasPrefix(ts, s.tree.localLeft) {
+		if strings.HasSuffix(ts, s.tree.localRight) {
+			switch strings.TrimSpace(ts[len(s.tree.localLeft):])[0] {
+			case '#':
+				s.content = s.content + ts
+				t = ""
+			case '/':
+				s.content = s.content + ts
+				t = ""
 			}
 		}
 	}

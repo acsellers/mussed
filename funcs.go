@@ -22,4 +22,6 @@ var RequiredFuncs = template.FuncMap{
 		}
 		return template.HTML("")
 	},
+	"mussedUpscope":   upscope,
+	"mussedDownscope": downscope,
 }

@@ -1,34 +1,68 @@
 package mussed
 
 import (
+	"fmt"
 	"reflect"
 )
 
-func upscope(dot map[string]interface{}, subject interface{}) {
+func upscope(d interface{}, i interface{}) map[string]interface{} {
+	dot, ok := d.(map[string]interface{})
+	if !ok {
+		dot = make(map[string]interface{})
+	} else {
+		if dot == nil {
+			dot = make(map[string]interface{})
+		}
+	}
 	var changes *mussedRecord
+	subject := i
+
 	switch {
 	case mapType(subject):
 		changes = upscopeMap(dot, subject)
 	case structType(subject):
 		changes = upscopeStruct(dot, subject)
+	default:
+		dot["mussedItem"] = i
+		return dot
+	}
+	if list, ok := dot["mussedScopeList"]; ok {
+		if records, ok := list.([]*mussedRecord); ok {
+			dot["mussedScopeList"] = append(records, changes)
+		} else {
+			dot["mussedScopeList"] = []*mussedRecord{changes}
+		}
+	} else {
+		dot["mussedScopeList"] = []*mussedRecord{changes}
 	}
 
+	return dot
+}
+
+func mapType(i interface{}) bool {
+	if i != nil {
+		return reflect.TypeOf(i).Kind() == reflect.Map
+	}
+	return false
+}
+
+func structType(i interface{}) bool {
+	it := reflect.TypeOf(i)
+	if it.Kind() == reflect.Ptr {
+		it = it.Elem()
+	}
+	return it.Kind() == reflect.Struct
 }
 func upscopeMap(dot map[string]interface{}, subject interface{}) *mussedRecord {
 	changes := &mussedRecord{
 		replaced: map[string]interface{}{},
 	}
 
-	st := reflect.TypeOf(subject)
-	if st.Kind() != reflect.Map {
-		return
-	}
 	subjectValue := reflect.ValueOf(subject)
 	if subjectValue.Type().Kind() != reflect.Map {
-		fmt.Println("not a map")
-		return
+		return nil
 	}
-	for _, key := range rv.MapKeys() {
+	for _, key := range subjectValue.MapKeys() {
 		keyName := key.String()
 		if val, ok := dot[keyName]; ok {
 			changes.replaced[keyName] = val
@@ -37,24 +71,28 @@ func upscopeMap(dot map[string]interface{}, subject interface{}) *mussedRecord {
 		}
 		dot[key.String()] = subjectValue.MapIndex(key).Interface()
 	}
+	return changes
 }
 
 func upscopeStruct(dot map[string]interface{}, subject interface{}) *mussedRecord {
-
+	return nil
 }
 
-func downscope(dot map[string]interface{}) {
+func downscope(dot map[string]interface{}) map[string]interface{} {
 	record, ok := dot["mussedScopeList"]
 	if !ok {
-		return
+		return dot
 	}
 	records, ok := record.([]*mussedRecord)
 	if !ok {
-		return
+		return dot
 	}
 	if len(records) > 0 {
 		subject := records[len(records)-1]
 
+		if subject == nil {
+			return dot
+		}
 		for _, added := range subject.added {
 			delete(dot, added)
 		}
@@ -63,6 +101,8 @@ func downscope(dot map[string]interface{}) {
 			dot[key] = previous
 		}
 	}
+
+	return dot
 }
 
 type mussedRecord struct {

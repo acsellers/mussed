@@ -25,6 +25,26 @@ func Parse(templateName, templateContent string) (map[string]*parse.Tree, error)
 			ParseName: templateName,
 			Root: &parse.ListNode{
 				NodeType: parse.NodeList,
+				Nodes: []parse.Node{
+					&parse.ActionNode{
+						NodeType: parse.NodeAction,
+						Pipe: &parse.PipeNode{
+							NodeType: parse.NodePipe,
+							Decl: []*parse.VariableNode{
+								&parse.VariableNode{
+									NodeType: parse.NodeVariable,
+									Ident:    []string{"$mussedCurrent"},
+								},
+							},
+							Cmds: []*parse.CommandNode{
+								&parse.CommandNode{
+									NodeType: parse.NodeCommand,
+									Args:     []parse.Node{&parse.DotNode{}},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}

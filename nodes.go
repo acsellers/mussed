@@ -34,12 +34,33 @@ func newTemplateNode(w string) *parse.TemplateNode {
 func newBlockNode(a string) (*parse.Tree, *parse.IfNode, *parse.ListNode) {
 	tmplName := fmt.Sprintf("mussedAnonymous%d", mangleNum)
 	mangleNum++
+	startList := []parse.Node{
+		&parse.ActionNode{
+			NodeType: parse.NodeAction,
+			Pipe: &parse.PipeNode{
+				NodeType: parse.NodePipe,
+				Decl: []*parse.VariableNode{
+					&parse.VariableNode{
+						NodeType: parse.NodeVariable,
+						Ident:    []string{"$mussedCurrent"},
+					},
+				},
+				Cmds: []*parse.CommandNode{
+					&parse.CommandNode{
+						NodeType: parse.NodeCommand,
+						Args:     []parse.Node{&parse.DotNode{}},
+					},
+				},
+			},
+		},
+	}
 
 	tree := &parse.Tree{
 		Name:      tmplName,
 		ParseName: a,
 		Root: &parse.ListNode{
 			NodeType: parse.NodeList,
+			Nodes:    startList,
 		},
 	}
 	return tree, newBlockChooseNode(tmplName, a), tree.Root
@@ -68,7 +89,7 @@ func newBlockChooseNode(tmpl, field string) *parse.IfNode {
 										Args: []parse.Node{
 											&parse.FieldNode{
 												NodeType: parse.NodeField,
-												Ident:    []string{field},
+												Ident:    strings.Split(field, "."),
 											},
 										},
 									},
@@ -106,7 +127,29 @@ func newBlockChooseNode(tmpl, field string) *parse.IfNode {
 											List: &parse.ListNode{
 												NodeType: parse.NodeList,
 												Nodes: []parse.Node{
-													newTemplateNode(tmpl),
+													&parse.TemplateNode{
+														NodeType: parse.NodeTemplate,
+														Name:     tmpl,
+														Pipe: &parse.PipeNode{
+															NodeType: parse.NodePipe,
+															Cmds: []*parse.CommandNode{
+																&parse.CommandNode{
+																	NodeType: parse.NodeCommand,
+																	Args: []parse.Node{
+																		&parse.IdentifierNode{
+																			NodeType: parse.NodeIdentifier,
+																			Ident:    "mussedUpscope",
+																		},
+																		&parse.VariableNode{
+																			NodeType: parse.NodeVariable,
+																			Ident:    []string{"$mussedCurrent"},
+																		},
+																		&parse.DotNode{},
+																	},
+																},
+															},
+														},
+													},
 												},
 											},
 										},
@@ -116,27 +159,28 @@ func newBlockChooseNode(tmpl, field string) *parse.IfNode {
 							ElseList: &parse.ListNode{
 								NodeType: parse.NodeList,
 								Nodes: []parse.Node{
-									&parse.WithNode{
-										parse.BranchNode{
-											NodeType: parse.NodeWith,
-											Pipe: &parse.PipeNode{
-												NodeType: parse.NodePipe,
-												Cmds: []*parse.CommandNode{
-													&parse.CommandNode{
-														NodeType: parse.NodeCommand,
-														Args: []parse.Node{
-															&parse.FieldNode{
-																NodeType: parse.NodeField,
-																Ident:    strings.Split(field, "."),
-															},
+									&parse.TemplateNode{
+										NodeType: parse.NodeTemplate,
+										Name:     tmpl,
+										Pipe: &parse.PipeNode{
+											NodeType: parse.NodePipe,
+											Cmds: []*parse.CommandNode{
+												&parse.CommandNode{
+													NodeType: parse.NodeCommand,
+													Args: []parse.Node{
+														&parse.IdentifierNode{
+															NodeType: parse.NodeIdentifier,
+															Ident:    "mussedUpscope",
+														},
+														&parse.VariableNode{
+															NodeType: parse.NodeVariable,
+															Ident:    []string{"$mussedCurrent"},
+														},
+														&parse.FieldNode{
+															NodeType: parse.NodeField,
+															Ident:    strings.Split(field, "."),
 														},
 													},
-												},
-											},
-											List: &parse.ListNode{
-												NodeType: parse.NodeList,
-												Nodes: []parse.Node{
-													newTemplateNode(tmpl),
 												},
 											},
 										},
