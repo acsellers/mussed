@@ -67,7 +67,30 @@ func newBlockNode(a string) (*parse.Tree, *parse.IfNode, *parse.ListNode) {
 }
 
 func newElseBlock(f string) (*parse.IfNode, *parse.ListNode) {
-	return nil, nil
+	listNode := &parse.ListNode{
+		NodeType: parse.NodeList,
+	}
+	ifNode := &parse.IfNode{
+		parse.BranchNode{
+			NodeType: parse.NodeIf,
+			Pipe: &parse.PipeNode{
+				NodeType: parse.NodePipe,
+				Cmds: []*parse.CommandNode{
+					&parse.CommandNode{
+						NodeType: parse.NodeCommand,
+						Args: []parse.Node{
+							&parse.FieldNode{
+								NodeType: parse.NodeField,
+								Ident:    strings.Split(f, "."),
+							},
+						},
+					},
+				},
+			},
+			ElseList: listNode,
+		},
+	}
+	return ifNode, listNode
 }
 
 func newBlockChooseNode(tmpl, field string) *parse.IfNode {

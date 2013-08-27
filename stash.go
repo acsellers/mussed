@@ -54,6 +54,9 @@ func (s *stash) Append(t string) {
 			case '/':
 				s.content = s.content + ts
 				t = ""
+			case '^':
+				s.content = s.content + ts
+				t = ""
 			}
 		}
 	}
