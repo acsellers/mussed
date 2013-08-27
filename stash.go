@@ -52,8 +52,8 @@ func (s *stash) Append(t string) {
 				s.content = s.content + ts
 				t = ""
 			case '>':
-				if ts+"\n" == t {
-					s.content = s.content + ts
+				if strings.HasSuffix(t, ts+"\n") {
+					s.content = s.content + t[:len(t)-1]
 					t = ""
 				}
 			}

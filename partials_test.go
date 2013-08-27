@@ -220,7 +220,7 @@ func TestPARTIALS7(t *testing.T) {
 		b := new(bytes.Buffer)
 		test.IsNil(t.ExecuteTemplate(b, "test", data))
 		test.AreEqual(`  >
-  >>`, b.String())
+>>`, b.String())
 	})
 }
 
@@ -251,7 +251,7 @@ func TestPARTIALS8(t *testing.T) {
 		test.IsNil(t.ExecuteTemplate(b, "test", data))
 		test.AreEqual(`>
   >
-  >`, b.String())
+>`, b.String())
 	})
 }
 
@@ -286,9 +286,9 @@ func TestPARTIALS9(t *testing.T) {
 		test.IsNil(t.ExecuteTemplate(b, "test", data))
 		test.AreEqual(`\
  |
- <
+<
 ->
- |
+|
 /
 `, b.String())
 	})

@@ -8,3 +8,4 @@ Mussed is a nearly mustache template library that maps to text/template/parse Tr
 * Quote characters are escaped with the Code instead of the Entity Name
 * Templates that aren't found are treated as fatal errors instead of empty strings
 * On the third partials test, Go is more proactive than mustache and escaped less thans where an average mustache would not
+* Partials do not inherit the indentation of their caller, who makes this up? This was found on partial specs 7-9.
