@@ -18,12 +18,26 @@ type protoTree struct {
 	localRight string
 }
 
+func (pt *protoTree) templates() map[string]*parse.Tree {
+	output := make(map[string]*parse.Tree)
+	for _, tree := range pt.childTrees {
+		output[tree.Name] = tree
+	}
+	output[pt.tree.Name] = pt.tree
+
+	return output
+}
+
 func (pt *protoTree) pop() *parse.ListNode {
 	if len(pt.stack) == 0 {
 		return pt.tree.Root
 	}
 	ln := pt.stack[len(pt.stack)-1]
-	pt.stack = pt.stack[:len(pt.stack)-2]
+	if len(pt.stack) == 1 {
+		pt.stack = pt.stack[1:]
+	} else {
+		pt.stack = pt.stack[:len(pt.stack)-2]
+	}
 	return ln
 }
 func (pt *protoTree) push(ln *parse.ListNode) {
@@ -31,9 +45,10 @@ func (pt *protoTree) push(ln *parse.ListNode) {
 }
 
 type stash struct {
-	tree    *protoTree
-	content string
-	started bool
+	tree       *protoTree
+	content    string
+	started    bool
+	commenting bool
 }
 
 func (s *stash) needsMoreText() bool {
@@ -55,17 +70,24 @@ func (s *stash) needsMoreText() bool {
 func (s *stash) Append(t string) {
 	ts := strings.TrimSpace(t)
 	//standalone comments
+	if s.commenting {
+		if strings.HasSuffix(ts, s.tree.localRight) {
+			s.commenting = false
+		}
+		return
+	}
 	if strings.HasPrefix(ts, s.tree.localLeft) {
 		if strings.TrimSpace(ts[len(s.tree.localLeft):])[0] == '!' {
 			if strings.HasSuffix(ts, s.tree.localRight) {
 				return
 			} else {
-				s.content += ts
+				s.commenting = true
+				return
 			}
 		}
 	}
 	if s.started {
-		s.content = s.content + "\n" + t
+		s.content = s.content + t
 	} else {
 		s.content = t
 		s.started = true
