@@ -45,7 +45,7 @@ func (s *stash) Append(t string) {
 		}
 	}
 	// sections opening and closing
-	if strings.HasPrefix(ts, s.tree.localLeft) {
+	if strings.HasPrefix(ts, s.tree.localLeft) && strings.Count(ts, s.tree.localLeft) == 1 {
 		if strings.HasSuffix(ts, s.tree.localRight) {
 			switch strings.TrimSpace(ts[len(s.tree.localLeft):])[0] {
 			case '#':
