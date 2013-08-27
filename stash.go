@@ -57,12 +57,7 @@ func (s *stash) Append(t string) {
 			}
 		}
 	}
-	if s.started {
-		s.content = s.content + t
-	} else {
-		s.content = t
-		s.started = true
-	}
+	s.content = s.content + t
 }
 func (s *stash) hasAction() bool {
 	return strings.Contains(s.content, s.tree.localLeft) ||
