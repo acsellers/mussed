@@ -228,7 +228,7 @@ func newYieldNode(w string) *parse.ActionNode {
 
 func newUnescapedIdentNode(field string) *parse.ActionNode {
 	return newActionNodeForCommands(
-		newCommandFieldNode(field),
+		newCommandFieldNode(strings.Split(field, ".")...),
 		newCommandIdentifierNode("mussedUnescape"),
 	)
 }
