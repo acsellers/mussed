@@ -48,15 +48,14 @@ func (s *stash) Append(t string) {
 	if strings.HasPrefix(ts, s.tree.localLeft) && strings.Count(ts, s.tree.localLeft) == 1 {
 		if strings.HasSuffix(ts, s.tree.localRight) {
 			switch strings.TrimSpace(ts[len(s.tree.localLeft):])[0] {
-			case '#':
+			case '#', '/', '^':
 				s.content = s.content + ts
 				t = ""
-			case '/':
-				s.content = s.content + ts
-				t = ""
-			case '^':
-				s.content = s.content + ts
-				t = ""
+			case '>':
+				if ts+"\n" == t {
+					s.content = s.content + ts
+					t = ""
+				}
 			}
 		}
 	}
