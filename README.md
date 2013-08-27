@@ -5,4 +5,4 @@ Mussed is a nearly mustache template library that maps to text/template/parse Tr
 
 ## Divergences from Mustache
 
-* The last trailing newline of a template is not preserved; some specs were modified
+* Quote characters are escaped with the Code instead of the Entity Name

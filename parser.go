@@ -145,17 +145,15 @@ func (pt *protoTree) Reader() io.Reader {
 }
 
 func (pt *protoTree) extract(s string) string {
-	if strings.HasPrefix(s, pt.localLeft) {
-		s = s[len(pt.localLeft):]
-	}
-	if strings.HasPrefix(s, LeftEscapeDelim) {
+	if strings.HasPrefix(s, LeftEscapeDelim) &&
+		strings.HasSuffix(s, RightEscapeDelim) {
 		s = s[len(LeftEscapeDelim):]
-	}
-	if strings.HasSuffix(s, pt.localRight) {
-		s = s[:len(s)-len(pt.localRight)]
-	}
-	if strings.HasSuffix(s, RightEscapeDelim) {
 		s = s[:len(s)-len(RightEscapeDelim)]
+	}
+	if strings.HasPrefix(s, pt.localLeft) &&
+		strings.HasSuffix(s, pt.localRight) {
+		s = s[len(pt.localLeft):]
+		s = s[:len(s)-len(pt.localRight)]
 	}
 	switch s[0] {
 	case '#', '/', '^', '>', '<', '=', '!', '&':

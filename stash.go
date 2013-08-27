@@ -89,7 +89,7 @@ func (s *stash) nextActionLocation() (int, bool) {
 	normalOpen := strings.Index(s.content, s.tree.localLeft)
 	normalUnescape := strings.Index(s.content, LeftEscapeDelim)
 
-	if normalUnescape >= 0 && normalUnescape < normalOpen {
+	if normalUnescape >= 0 && normalUnescape <= normalOpen {
 		return normalUnescape, true
 	}
 	if normalOpen >= 0 {
