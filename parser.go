@@ -114,7 +114,7 @@ func (pt *protoTree) actionPurpose(w string) int {
 
 		// switch delimeters
 	case '=':
-		delims := strings.Split(tw[1:len(tw)-1], " ")
+		delims := strings.SplitN(strings.TrimSpace(tw[1:len(tw)-1]), " ", 2)
 		if len(delims) != 2 {
 			if len(delims)%2 == 0 {
 				delims = []string{delims[0][0 : len(delims[0])/2], delims[0][len(delims[0])/2 : len(delims[0])]}
@@ -122,8 +122,8 @@ func (pt *protoTree) actionPurpose(w string) int {
 				return noop
 			}
 		}
-		pt.localLeft = delims[0]
-		pt.localRight = delims[1]
+		pt.localLeft = strings.TrimSpace(delims[0])
+		pt.localRight = strings.TrimSpace(delims[1])
 
 		return noop
 

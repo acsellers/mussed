@@ -14,12 +14,18 @@ func (s *stash) needsMoreText() bool {
 	normalUnescape := strings.Index(s.content, LeftEscapeDelim)
 
 	if normalUnescape >= 0 && normalUnescape < normalOpen {
-		closeIndex := strings.Index(s.content, RightEscapeDelim)
-		return !(closeIndex >= 0 && closeIndex > normalUnescape)
+		closeIndex := strings.Index(
+			s.content[normalUnescape+len(LeftEscapeDelim):],
+			RightEscapeDelim,
+		)
+		return closeIndex == -1
 	}
 	if normalOpen >= 0 {
-		closeIndex := strings.Index(s.content, s.tree.localRight)
-		return !(closeIndex >= 0 && closeIndex > normalOpen)
+		closeIndex := strings.Index(
+			s.content[normalOpen+len(s.tree.localLeft):],
+			s.tree.localRight,
+		)
+		return closeIndex == -1
 	}
 
 	return false
@@ -45,16 +51,20 @@ func (s *stash) Append(t string) {
 		}
 	}
 	// sections opening and closing
-	if strings.HasPrefix(ts, s.tree.localLeft) && strings.Count(ts, s.tree.localLeft) == 1 {
-		if strings.HasSuffix(ts, s.tree.localRight) {
-			switch strings.TrimSpace(ts[len(s.tree.localLeft):])[0] {
-			case '#', '/', '^':
-				s.content = s.content + ts
-				t = ""
-			case '>':
-				if strings.HasSuffix(t, ts+"\n") {
-					s.content = s.content + t[:len(t)-1]
+
+	if strings.HasPrefix(ts, s.tree.localLeft) {
+		if strings.Count(ts, s.tree.localLeft) == 1 ||
+			(s.tree.localLeft == s.tree.localRight && strings.Count(ts, s.tree.localLeft) == 2) {
+			if strings.HasSuffix(ts, s.tree.localRight) {
+				switch strings.TrimSpace(ts[len(s.tree.localLeft):])[0] {
+				case '#', '/', '^', '=':
+					s.content = s.content + ts
 					t = ""
+				case '>':
+					if strings.HasSuffix(t, ts+"\n") {
+						s.content = s.content + t[:len(t)-1]
+						t = ""
+					}
 				}
 			}
 		}
